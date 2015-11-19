@@ -1,5 +1,5 @@
 # rtl_waterfall
-Simple GL based waterfall window for rtl-sdr
+Simple glut based waterfall window for rtl-sdr
 
 small program that plots a waterfall using rtlsdr
 usage: rtl_waterfall freq(MHz) gain
