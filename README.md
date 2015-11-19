@@ -4,6 +4,8 @@ Simple glut based waterfall window for rtl-sdr
 small program that plots a waterfall using rtlsdr
 usage: rtl_waterfall freq(MHz) gain
 
+Press [q,w] to change frequency, [a,z] to adjust waterfall color sensitivity, ESC to quit.
+
 glut code copied from http://stackoverflow.com/questions/503816/linux-fastest-way-to-draw
 rtlsdr code copied from rtl_sdr.c that came with the lib
 
