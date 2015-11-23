@@ -287,17 +287,21 @@ int main(int argc, char **argv)
 {
 	int c;
 	uint32_t dev_index = 0;
+	frequency = 100e6; /* global */
 
 	// setup window
 	glut_init(argc,argv);
 
-	while ((c = getopt(argc, argv, "d:")) != -1) {
+	while ((c = getopt(argc, argv, "d:f:")) != -1) {
 		switch (c) {
 			case 'd':
 				dev_index = atoi(optarg);
 				break;
+			case 'f':
+				frequency = atof(optarg); // for scientific notation
+				break;
 			default:
-				fprintf(stderr, "Usage: %s [-d <dev_index>]\n", argv[0]);
+				fprintf(stderr, "Usage: %s [-d <dev_index>] [-f <freq>]\n", argv[0]);
 				exit(1);
 				/* NOTREACHED */
 		}
@@ -332,17 +336,16 @@ int main(int argc, char **argv)
 	if (r < 0) fprintf(stderr, "WARNING: Failed to set sample rate.\n");
 
 	/* Set the frequency */
-	frequency = 100000000;
-	if(argv[1]) frequency = (uint32_t)atof(argv[1]) * (uint32_t)1e6;
-	if(frequency < 1e6)
-	{
-		fprintf(stderr, "WARNING: Center freqeuncy should be in range, setting to 100MHz\n");
-		frequency = 100000000;
+	if ((frequency < 22e6) || (frequency > 1766e6)) {
+		frequency = 100e6;
+		fprintf(stderr, "WARNING: Center frequency should be 22MHz-1766MHz; setting to %dMHz\n", (int)(frequency/1e6));
 	}
 	r = rtlsdr_set_center_freq(dev, frequency);
-	if (r < 0) fprintf(stderr, "WARNING: Failed to set center freq.\n");
-	else fprintf(stderr, "Tuned to %f MHz.\n", frequency/1e6);
-	sprintf(strFreq,"%4.0f",frequency/1e6);
+	if (r < 0)
+		fprintf(stderr, "WARNING: Failed to set center freq.\n");
+	else
+		fprintf(stderr, "Tuned to %f MHz.\n", frequency/1e6);
+	sprintf(strFreq,"%4.0f", frequency/1e6);
 
 	/* Set the gain */
 	int gain = 0;
