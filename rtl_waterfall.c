@@ -285,9 +285,26 @@ void readData(int line_idx)
 
 int main(int argc, char **argv)
 {
+	int c;
+	uint32_t dev_index = 0;
+
 	// setup window
 	glut_init(argc,argv);
 
+	while ((c = getopt(argc, argv, "d:")) != -1) {
+		switch (c) {
+			case 'd':
+				dev_index = atoi(optarg);
+				break;
+			default:
+				fprintf(stderr, "Usage: %s [-d <dev_index>]\n", argv[0]);
+				exit(1);
+				/* NOTREACHED */
+		}
+	}
+	argv += optind;
+	argc -= optind;
+	
 	///
 	// init radio
 	///
@@ -300,7 +317,6 @@ int main(int argc, char **argv)
 
 	fprintf(stderr, "Found %d device(s):\n", device_count);
 
-	uint32_t dev_index = 0;
 	fprintf(stderr, "Using device %d: %s\n", dev_index, rtlsdr_get_device_name(dev_index));
 
 	int r = rtlsdr_open(&dev, dev_index);
