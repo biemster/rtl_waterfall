@@ -1,0 +1,4 @@
+*.o
+rtl_waterfall
+.*.swp
+.*.swo
