@@ -2,7 +2,7 @@
 Simple glut based waterfall window for rtl-sdr
 
 small program that plots a waterfall using rtlsdr  
-usage: rtl_waterfall [-d <dev_index>] [-f <freq>] [-g <gain_dB>] [-r samp_rate]
+usage: rtl_waterfall [-d &lt;dev_index&gt;] [-f &lt;freq&gt;] [-g &lt;gain_dB&gt;] [-r &lt;samp_rate&gt;]
 
 Press [q,w] to change frequency, [a,z] to adjust waterfall color sensitivity, ESC to quit.  
 
