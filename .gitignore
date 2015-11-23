@@ -2,3 +2,5 @@
 rtl_waterfall
 .*.swp
 .*.swo
+*.rej
+*.orig
