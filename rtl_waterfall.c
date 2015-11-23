@@ -287,12 +287,13 @@ int main(int argc, char **argv)
 {
 	int c;
 	uint32_t dev_index = 0;
+	int gain = 0;
 	frequency = 100e6; /* global */
 
 	// setup window
 	glut_init(argc,argv);
 
-	while ((c = getopt(argc, argv, "d:f:")) != -1) {
+	while ((c = getopt(argc, argv, "d:f:g:")) != -1) {
 		switch (c) {
 			case 'd':
 				dev_index = atoi(optarg);
@@ -300,8 +301,11 @@ int main(int argc, char **argv)
 			case 'f':
 				frequency = atof(optarg); // for scientific notation
 				break;
+			case 'g':
+				gain = atoi(optarg);
+				break;
 			default:
-				fprintf(stderr, "Usage: %s [-d <dev_index>] [-f <freq>]\n", argv[0]);
+				fprintf(stderr, "Usage: %s [-d <dev_index>] [-f <freq>] [-g <gain_dB>]\n", argv[0]);
 				exit(1);
 				/* NOTREACHED */
 		}
@@ -348,8 +352,6 @@ int main(int argc, char **argv)
 	sprintf(strFreq,"%4.0f", frequency/1e6);
 
 	/* Set the gain */
-	int gain = 0;
-	if(argv[2]) gain = atoi(argv[2]);
 	if (!gain)
 	{
 		 /* Enable automatic gain */
