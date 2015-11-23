@@ -166,6 +166,8 @@ void displayTicks()
 
 int glut_init(int *argc,char **argv)
 {
+	glutInitWindowPosition(100, 100);
+	glutInitWindowSize(GLUT_BUFSIZE, GLUT_BUFSIZE/2);
 	glutInit(argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 
