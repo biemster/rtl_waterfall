@@ -13,4 +13,4 @@ on OSX: brew install fftw (glut should be present by default)
 
 Compile on linux: gcc -o rtl_waterfall rtl_waterfall.c -lglut -lGL -lrtlsdr -lfftw3 -lm  
 OSX: gcc -framework GLUT -framework OpenGL -framework Cocoa rtl_waterfall.c -o rtl_waterfall -lrtlsdr -lfftw3 -lm
-(last tested on osx years ago, on 10.6)
+(last tested on osx years ago, on 10.6) (If using MacPorts, add -L /opt/local/lib -I /opt/local/include)
