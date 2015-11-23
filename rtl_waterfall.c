@@ -164,13 +164,11 @@ void displayTicks()
 	glEnable(GL_TEXTURE_2D);
 }
 
-int glut_init(int argc,char **argv)
+int glut_init(int *argc,char **argv)
 {
-	glutInit(&argc, argv);
+	glutInit(argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 
-	glutInitWindowPosition(100, 100);
-	glutInitWindowSize(GLUT_BUFSIZE, GLUT_BUFSIZE/2);
 	glutCreateWindow("Waterfall");
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, GLUT_BUFSIZE, GLUT_BUFSIZE, 0, GL_RGB, GL_FLOAT, &texture[0][0][0]);
@@ -292,7 +290,7 @@ int main(int argc, char **argv)
 	frequency = 100e6; /* global */
 
 	// setup window
-	glut_init(argc, argv);
+	glut_init(&argc, argv);
 
 	while ((c = getopt(argc, argv, "d:f:g:r:")) != -1) {
 		switch (c) {
@@ -309,8 +307,8 @@ int main(int argc, char **argv)
 				samp_rate = atof(optarg); // for scientific notation
 				break;
 			default:
-				fprintf(stderr, "Usage: %s [-d <dev_index>] [-f <freq>]\n"
-					"\t[-g <gain_dB>] [-r samp_rate]\n", argv[0]);
+				fprintf(stderr, "Usage: %s [X11_GLUT_flags] [-d <dev_index>] [-f <freq>] "
+					"[-g <gain_dB>] [-r samp_rate]\n", argv[0]);
 				exit(1);
 				/* NOTREACHED */
 		}
