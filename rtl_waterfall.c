@@ -287,13 +287,14 @@ int main(int argc, char **argv)
 {
 	int c;
 	uint32_t dev_index = 0;
+	uint32_t samp_rate = DEFAULT_SAMPLE_RATE;
 	int gain = 0;
 	frequency = 100e6; /* global */
 
 	// setup window
-	glut_init(argc,argv);
+	glut_init(argc, argv);
 
-	while ((c = getopt(argc, argv, "d:f:g:")) != -1) {
+	while ((c = getopt(argc, argv, "d:f:g:r:")) != -1) {
 		switch (c) {
 			case 'd':
 				dev_index = atoi(optarg);
@@ -304,8 +305,12 @@ int main(int argc, char **argv)
 			case 'g':
 				gain = atoi(optarg);
 				break;
+			case 'r':
+				samp_rate = atof(optarg); // for scientific notation
+				break;
 			default:
-				fprintf(stderr, "Usage: %s [-d <dev_index>] [-f <freq>] [-g <gain_dB>]\n", argv[0]);
+				fprintf(stderr, "Usage: %s [-d <dev_index>] [-f <freq>]\n"
+					"\t[-g <gain_dB>] [-r samp_rate]\n", argv[0]);
 				exit(1);
 				/* NOTREACHED */
 		}
@@ -335,7 +340,6 @@ int main(int argc, char **argv)
 	}
 	
 	/* Set the sample rate */
-	uint32_t samp_rate = DEFAULT_SAMPLE_RATE;
 	r = rtlsdr_set_sample_rate(dev, samp_rate);
 	if (r < 0) fprintf(stderr, "WARNING: Failed to set sample rate.\n");
 
