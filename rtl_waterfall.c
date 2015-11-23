@@ -320,7 +320,7 @@ int main(int argc, char **argv)
 	if(argv[1]) frequency = (uint32_t)atof(argv[1]) * (uint32_t)1e6;
 	if(frequency < 1e6)
 	{
-		fprintf(stderr, "WARNING: Center freqeuncy should be in range, setting to 100MHz\n");
+		fprintf(stderr, "WARNING: Center frequency should be in range, setting to 100MHz\n");
 		frequency = 100000000;
 	}
 	r = rtlsdr_set_center_freq(dev, frequency);
