@@ -2,7 +2,7 @@
 # something like "source /path/to/gnuradio/setup_env.sh"
 
 CC?=gcc
-CFLAGS?=-O2 `pkg-config --cflags librtlsdr`
+CFLAGS?=-O2 `pkg-config --cflags librtlsdr` -g
 LDFLAGS?=-lglut -lGL -lrtlsdr -lfftw3 -lm `pkg-config --libs librtlsdr`
 
 all: 
