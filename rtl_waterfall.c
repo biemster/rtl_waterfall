@@ -326,13 +326,13 @@ int main(int argc, char **argv)
 {
 	int c;
 	uint32_t dev_index = 0;
-	int gain = 0;
+	int gain = 0, ppm = 0;
 	frequency = 100e6; /* global */
 
 	// setup window
 	glut_init(&argc, argv);
 
-	while ((c = getopt(argc, argv, "d:f:g:r:")) != -1) {
+	while ((c = getopt(argc, argv, "d:f:g:p:r:")) != -1) {
 		switch (c) {
 			case 'd':
 				dev_index = atoi(optarg);
@@ -341,14 +341,17 @@ int main(int argc, char **argv)
 				frequency = atof(optarg); // for scientific notation
 				break;
 			case 'g':
-				gain = atoi(optarg);
+				gain = (int) (atof(optarg) * 10);
+				break;
+			case 'p':
+				ppm = (int) atof(optarg);
 				break;
 			case 'r':
 				samp_rate = atof(optarg); // for scientific notation
 				break;
 			default:
 				fprintf(stderr, "Usage: %s [X11_GLUT_flags] [-d <dev_index>] [-f <freq>] "
-					"[-g <gain_dB>] [-r samp_rate]\n", argv[0]);
+					"[-g <gain_dB>] [-p ppm] [-r samp_rate]\n", argv[0]);
 				exit(1);
 				/* NOTREACHED */
 		}
@@ -375,7 +378,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
-	
+
 	/* Set the sample rate */
 	if (rtlsdr_set_sample_rate(dev, samp_rate) < 0)
 		fprintf(stderr, "WARNING: Failed to set sample rate.\n");
@@ -391,6 +394,11 @@ int main(int argc, char **argv)
 	else
 		fprintf(stderr, "Tuned to %f MHz.\n", frequency/1e6);
 	snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
+
+	/* Set the oscillator frequency ("PPM") correction */
+	if (ppm)
+		if (rtlsdr_set_freq_correction(dev, ppm) < 0)
+			fprintf(stderr, "WARNING: Failed to set frequency correction\n");
 
 	/* Set the gain */
 	if (!gain)
