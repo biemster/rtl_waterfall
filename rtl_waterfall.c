@@ -36,7 +36,8 @@
 
 float texture[GLUT_BUFSIZE][GLUT_BUFSIZE][3];
 float offset;
-char strFreq[5];
+#define FBUF_LEN 8 // room for {'1', '7', '6', '6', '.', '0', '\0'}
+char strFreq[FBUF_LEN];
 float pwr_max;
 float pwr_diff;
 
@@ -55,6 +56,7 @@ fftw_plan fftw_p;
 static int do_exit = 0;
 static rtlsdr_dev_t *dev = NULL;
 uint32_t frequency;
+uint32_t samp_rate = DEFAULT_SAMPLE_RATE;
 
 void displayTicks();
 void glut_renderScene()
@@ -80,33 +82,56 @@ void glut_renderScene()
 void glut_keyboard( unsigned char key, int x, int y )
 {
 	uint32_t new_freq;
+	int r;
  	switch(key)
  	{
- 	case 'q':
-		new_freq = frequency - 1e6;
+	case 'Q':
+		new_freq = frequency - samp_rate;
 		if (new_freq < RTL_MIN_FREQ)
 			new_freq = RTL_MIN_FREQ;
-		int r = rtlsdr_set_center_freq(dev, new_freq);
-		if (r < 0)
+		if (rtlsdr_set_center_freq(dev, new_freq) < 0)
 			fprintf(stderr, "WARNING: Failed to set center freq.\n");
 		else {
 			fprintf(stderr, "\rTuned to %f MHz.", new_freq/1e6);
 			frequency = new_freq;
 		}
-		sprintf(strFreq,"%4.1f",frequency/1e6);
- 		break;
- 	case 'w':
-		new_freq = frequency + 1e6;
+		snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
+		break;
+	case 'q':
+		new_freq = frequency - samp_rate/2;
+		if (new_freq < RTL_MIN_FREQ)
+			new_freq = RTL_MIN_FREQ;
+		if (rtlsdr_set_center_freq(dev, new_freq) < 0)
+			fprintf(stderr, "WARNING: Failed to set center freq.\n");
+		else {
+			fprintf(stderr, "\rTuned to %f MHz.", new_freq/1e6);
+			frequency = new_freq;
+		}
+		snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
+		break;
+	case 'W':
+		new_freq = frequency + samp_rate;
 		if (new_freq > RTL_MAX_FREQ)
 			new_freq = RTL_MAX_FREQ;
-		r = rtlsdr_set_center_freq(dev, new_freq);
-		if (r < 0)
+		if (rtlsdr_set_center_freq(dev, new_freq) < 0)
 			fprintf(stderr, "WARNING: Failed to set center freq.\n");
 		else {
 			fprintf(stderr, "\rTuned to %f MHz.", new_freq/1e6);
 			frequency = new_freq;
 		}
-		sprintf(strFreq,"%4.1f",frequency/1e6);
+		snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
+		break;
+	case 'w':
+		new_freq = frequency + samp_rate/4;
+		if (new_freq > RTL_MAX_FREQ)
+			new_freq = RTL_MAX_FREQ;
+		if (rtlsdr_set_center_freq(dev, new_freq) < 0)
+			fprintf(stderr, "WARNING: Failed to set center freq.\n");
+		else {
+			fprintf(stderr, "\rTuned to %f MHz.", new_freq/1e6);
+			frequency = new_freq;
+		}
+		snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
  		break;
  	case 'a':
  		pwr_diff *= .5;
@@ -125,7 +150,8 @@ void glut_keyboard( unsigned char key, int x, int y )
 
 void displayTicks()
 {
-	// set the ticks for a 2 MHz bandwidth (DEFAULT_SAMPLE_RATE = (128 * 16384)	// 2^21)
+	char tbuf[FBUF_LEN];
+	snprintf(tbuf, FBUF_LEN, "%0.2f", samp_rate/4e6);
 	glDisable(GL_TEXTURE_2D);
 		glRasterPos2f(.95,-.98);
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, '|');
@@ -137,9 +163,8 @@ void displayTicks()
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, '|');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, ' ');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '+');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '0');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '.');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '5');
+		for (int i = 0; i < strlen(tbuf); i++)
+			glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, tbuf[i]);
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'M');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'H');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'z');
@@ -150,10 +175,8 @@ void displayTicks()
 		glRasterPos2f(-.005,-.98);
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, '|');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, ' ');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, strFreq[0]);
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, strFreq[1]);
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, strFreq[2]);
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, strFreq[3]);
+		for (int i = 0; i < strlen(strFreq); i++)
+			glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, strFreq[i]);
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, ' ');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'M');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'H');
@@ -166,9 +189,8 @@ void displayTicks()
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, '|');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, ' ');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '-');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '0');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '.');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '5');
+		for (int i = 0; i < strlen(tbuf); i++)
+			glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, tbuf[i]);
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'M');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'H');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'z');
@@ -304,7 +326,6 @@ int main(int argc, char **argv)
 {
 	int c;
 	uint32_t dev_index = 0;
-	uint32_t samp_rate = DEFAULT_SAMPLE_RATE;
 	int gain = 0;
 	frequency = 100e6; /* global */
 
@@ -371,7 +392,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "WARNING: Failed to set center freq.\n");
 	else
 		fprintf(stderr, "Tuned to %f MHz.\n", frequency/1e6);
-	sprintf(strFreq,"%4.1f", frequency/1e6);
+	snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
 
 	/* Set the gain */
 	if (!gain)
@@ -419,7 +440,7 @@ int main(int argc, char **argv)
 	
 	/* start reading samples */
 	fprintf(stderr, "Update frequency is %.2fHz.\n",((double)DEFAULT_SAMPLE_RATE / (double)DEFAULT_BUF_LENGTH));
-	fprintf(stderr, "Press [q,w] to change frequency, [a,z] to adjust waterfall color sensitivity, ESC to quit.\n");
+	fprintf(stderr, "Press [Q,q,w,W] to change frequency, [a,z] to adjust waterfall color sensitivity, ESC to quit.\n");
 	pwr_max = 0.0f;
 	pwr_diff = 1.0f;
 	glutTimerFunc(0,readData,0);
