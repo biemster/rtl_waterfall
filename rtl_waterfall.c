@@ -58,6 +58,14 @@ static rtlsdr_dev_t *dev = NULL;
 uint32_t frequency;
 uint32_t samp_rate = DEFAULT_SAMPLE_RATE;
 
+int *gains = NULL, gainsteps = 0;
+int gain_get_levels();
+int gain_auto_enable();
+int gain_manual_enable();
+int gain_is_valid(int);
+int gain_manual_increase();
+int gain_manual_decrease();
+
 void displayTicks();
 void glut_renderScene()
 {
@@ -141,6 +149,15 @@ void glut_keyboard( unsigned char key, int x, int y )
  		pwr_diff *= 2.;
  		fprintf(stderr, "\rpwr_diff reset to %.4f", pwr_diff);
  		break;
+	case 'f':
+		gain_manual_decrease();
+		break;
+	case 'g':
+		gain_auto_enable();
+		break;
+	case 'h':
+		gain_manual_increase();
+		break;
  	case 27: // Escape key
  		fprintf(stderr, "\nbye\n");
  		exit(0);
@@ -322,6 +339,61 @@ void readData(int line_idx)
 	glutTimerFunc(0,readData,++line_idx);
 }
 
+int gain_get_levels() {
+	gainsteps = rtlsdr_get_tuner_gains(dev, NULL);
+	gains = calloc(gainsteps, sizeof(int));
+	gainsteps = rtlsdr_get_tuner_gains(dev, gains);
+	return gainsteps;
+}
+
+int gain_auto_enable() {
+	int rv;
+	if ((rv = rtlsdr_set_tuner_gain_mode(dev, 0)) < 0)
+		fprintf(stderr, "WARNING: Failed to enable automatic gain.\n");
+	return rv;
+}
+
+int gain_manual_enable() {
+	int rv;
+	if ((rv = rtlsdr_set_tuner_gain_mode(dev, 1)) < 0)
+		fprintf(stderr, "WARNING: Failed to enable manual gain.\n");
+	return rv;
+}
+
+int gain_is_valid(int g) {
+	int i;
+	if ((NULL == gains) || (0 == gainsteps))
+		return 0;
+
+	for (i = 0; i < gainsteps; i++)
+		if (gains[i] == g)
+			return 1;
+	return 0;
+}
+
+int gain_manual_increase() {
+	int g = rtlsdr_get_tuner_gain(dev);
+	gain_manual_enable();
+	for (int i = 0; i < gainsteps; i++)
+		if (gains[i] > g) {
+			rtlsdr_set_tuner_gain(dev, gains[i]);
+			return 0;
+		}
+	return -1;
+}
+
+int gain_manual_decrease() {
+	int g = rtlsdr_get_tuner_gain(dev);
+	gain_manual_enable();
+	for (int i = gainsteps-1; i ; i--)
+		if (gains[i] < g) {
+			rtlsdr_set_tuner_gain(dev, gains[i]);
+			return 0;
+		}
+	return -1;
+}
+
+
 int main(int argc, char **argv)
 {
 	int c;
@@ -341,10 +413,10 @@ int main(int argc, char **argv)
 				frequency = atof(optarg); // for scientific notation
 				break;
 			case 'g':
-				gain = (int) (atof(optarg) * 10);
+				gain = (int) (atof(optarg) * 10); // nice clean fractional decibels
 				break;
 			case 'p':
-				ppm = (int) atof(optarg);
+				ppm = (int) lround(atof(optarg)); // accept fractional ppm correction
 				break;
 			case 'r':
 				samp_rate = atof(optarg); // for scientific notation
@@ -401,28 +473,22 @@ int main(int argc, char **argv)
 			fprintf(stderr, "WARNING: Failed to set frequency correction\n");
 
 	/* Set the gain */
-	if (!gain)
-	{
-		 /* Enable automatic gain */
-		if (rtlsdr_set_tuner_gain_mode(dev, 0) < 0)
-			fprintf(stderr, "WARNING: Failed to enable automatic gain.\n");
-	}
-	else
-	{
-		/* Enable manual gain */
-		if (rtlsdr_set_tuner_gain_mode(dev, 1) < 0)
-			fprintf(stderr, "WARNING: Failed to enable manual gain.\n");
+	gain_manual_enable(); // set manual mode first so gain levels can be queried
+	gain_get_levels();
+	gain_auto_enable(); // switch back to auto gain mode
 
-		/* Set the tuner gain */
-		if (rtlsdr_set_tuner_gain(dev, gain) < 0)
-		{
-			fprintf(stderr, "WARNING: Failed to set tuner gain.\n");
-			fprintf(stderr, "Valid values for e4000 are: -10, 15, 40, 65, 90, 115, 140, 165, 190, 215, 240, 290, 340, 420, 430, 450, 470, 490\n");
-			fprintf(stderr, "Valid values for r820t are: 9, 14, 27, 37, 77, 87, 125, 144, 157, 166, 197, 207, 229, 254, 280, 297,\n\t328, 338, 364, 372, 386, 402, 421, 434, 439, 445, 480, 496\n");
-			fprintf(stderr, "Gain values are in tenths of dB, e.g. 115 means 11.5 dB.\n");
+	if (gain) {
+		if (gain_is_valid(gain)) {
+			if (rtlsdr_set_tuner_gain(dev, gain) < 0)
+				fprintf(stderr, "WARNING: Failed to set tuner gain.\n");
+			fprintf(stderr, "Tuner gain set to %.1f dB.\n", rtlsdr_get_tuner_gain(dev)/10.0);
+		} else {
+			fprintf(stderr, "Invalid gain %.1f; using auto gain\n", gain/10.0);
+			fprintf(stderr, "Allowed values: ");
+			for (int i = 0; i < gainsteps; i++)
+				fprintf(stderr, "%.1f ", gains[i]/10.0);
+			fprintf(stderr, "\n\n");
 		}
-		else
-			fprintf(stderr, "Tuner gain set to %f dB.\n", gain/10.0);
 	}
 	
 	/* Reset endpoint before we start reading from it (mandatory) */
@@ -446,7 +512,7 @@ int main(int argc, char **argv)
 	
 	/* start reading samples */
 	fprintf(stderr, "Update frequency is %.2fHz.\n",((double)DEFAULT_SAMPLE_RATE / (double)DEFAULT_BUF_LENGTH));
-	fprintf(stderr, "Press [Q,q,w,W] to change frequency, [a,z] to adjust waterfall color sensitivity, ESC to quit.\n");
+	fprintf(stderr, "Press [Q,q,w,W] to change frequency, [a,z] to adjust color sensitivity, [f,g,h] to adjust gain, ESC to quit.\n");
 	pwr_max = 0.0f;
 	pwr_diff = 1.0f;
 	glutTimerFunc(0,readData,0);
