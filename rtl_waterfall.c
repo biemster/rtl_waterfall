@@ -370,16 +370,15 @@ int main(int argc, char **argv)
 
 	fprintf(stderr, "Using device %d: %s\n", dev_index, rtlsdr_get_device_name(dev_index));
 
-	int r = rtlsdr_open(&dev, dev_index);
-	if (r < 0)
+	if (rtlsdr_open(&dev, dev_index) < 0)
 	{
 		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 	
 	/* Set the sample rate */
-	r = rtlsdr_set_sample_rate(dev, samp_rate);
-	if (r < 0) fprintf(stderr, "WARNING: Failed to set sample rate.\n");
+	if (rtlsdr_set_sample_rate(dev, samp_rate) < 0)
+		fprintf(stderr, "WARNING: Failed to set sample rate.\n");
 
 	/* Set the frequency */
 	if ((frequency < RTL_MIN_FREQ) || (frequency > RTL_MAX_FREQ)) {
@@ -387,8 +386,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "WARNING: Center frequency should be %dMHz-%dMHz; setting to %dMHz\n",
 			(int)(RTL_MIN_FREQ/1e6), (int)(RTL_MAX_FREQ/1e6), (int)(frequency/1e6));
 	}
-	r = rtlsdr_set_center_freq(dev, frequency);
-	if (r < 0)
+	if (rtlsdr_set_center_freq(dev, frequency) < 0)
 		fprintf(stderr, "WARNING: Failed to set center freq.\n");
 	else
 		fprintf(stderr, "Tuned to %f MHz.\n", frequency/1e6);
@@ -398,30 +396,30 @@ int main(int argc, char **argv)
 	if (!gain)
 	{
 		 /* Enable automatic gain */
-		r = rtlsdr_set_tuner_gain_mode(dev, 0);
-		if (r < 0) fprintf(stderr, "WARNING: Failed to enable automatic gain.\n");
+		if (rtlsdr_set_tuner_gain_mode(dev, 0) < 0)
+			fprintf(stderr, "WARNING: Failed to enable automatic gain.\n");
 	}
 	else
 	{
 		/* Enable manual gain */
-		r = rtlsdr_set_tuner_gain_mode(dev, 1);
-		if (r < 0) fprintf(stderr, "WARNING: Failed to enable manual gain.\n");
+		if (rtlsdr_set_tuner_gain_mode(dev, 1) < 0)
+			fprintf(stderr, "WARNING: Failed to enable manual gain.\n");
 
 		/* Set the tuner gain */
-		r = rtlsdr_set_tuner_gain(dev, gain);
-		if (r < 0)
+		if (rtlsdr_set_tuner_gain(dev, gain) < 0)
 		{
 			fprintf(stderr, "WARNING: Failed to set tuner gain.\n");
 			fprintf(stderr, "Valid values for e4000 are: -10, 15, 40, 65, 90, 115, 140, 165, 190, 215, 240, 290, 340, 420, 430, 450, 470, 490\n");
 			fprintf(stderr, "Valid values for r820t are: 9, 14, 27, 37, 77, 87, 125, 144, 157, 166, 197, 207, 229, 254, 280, 297,\n\t328, 338, 364, 372, 386, 402, 421, 434, 439, 445, 480, 496\n");
 			fprintf(stderr, "Gain values are in tenths of dB, e.g. 115 means 11.5 dB.\n");
 		}
-		else fprintf(stderr, "Tuner gain set to %f dB.\n", gain/10.0);
+		else
+			fprintf(stderr, "Tuner gain set to %f dB.\n", gain/10.0);
 	}
 	
 	/* Reset endpoint before we start reading from it (mandatory) */
-	r = rtlsdr_reset_buffer(dev);
-	if (r < 0) fprintf(stderr, "WARNING: Failed to reset buffers.\n");
+	if (rtlsdr_reset_buffer(dev) < 0)
+		fprintf(stderr, "WARNING: Failed to reset buffers.\n");
 
 	
 	///
