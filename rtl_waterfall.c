@@ -45,7 +45,7 @@ fftw_complex *fftw_in;
 fftw_complex *fftw_out;
 fftw_plan fftw_p;
 
-#define DEFAULT_SAMPLE_RATE			(128 * 16384)	// 2^21
+#define DEFAULT_SAMPLE_RATE	2e6
 #define DEFAULT_BUF_LENGTH			(8 * 16384)		// 2^17, [min,max]=[512,(256 * 16384)], update freq = (DEFAULT_SAMPLE_RATE / DEFAULT_BUF_LENGTH) Hz
 
 // Not all tuners can go to either extreme...
