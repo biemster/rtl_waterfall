@@ -122,7 +122,7 @@ void glut_keyboard( unsigned char key, int x, int y )
 		snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
 		break;
 	case 'w':
-		new_freq = frequency + samp_rate/4;
+		new_freq = frequency + samp_rate/2;
 		if (new_freq > RTL_MAX_FREQ)
 			new_freq = RTL_MAX_FREQ;
 		if (rtlsdr_set_center_freq(dev, new_freq) < 0)
