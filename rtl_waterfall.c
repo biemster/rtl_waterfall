@@ -48,6 +48,10 @@ fftw_plan fftw_p;
 #define DEFAULT_SAMPLE_RATE			(128 * 16384)	// 2^21
 #define DEFAULT_BUF_LENGTH			(8 * 16384)		// 2^17, [min,max]=[512,(256 * 16384)], update freq = (DEFAULT_SAMPLE_RATE / DEFAULT_BUF_LENGTH) Hz
 
+// Not all tuners can go to either extreme...
+#define RTL_MIN_FREQ 22e6
+#define RTL_MAX_FREQ 1766e6
+
 static int do_exit = 0;
 static rtlsdr_dev_t *dev = NULL;
 uint32_t frequency;
@@ -75,21 +79,34 @@ void glut_renderScene()
 
 void glut_keyboard( unsigned char key, int x, int y )
 {
+	uint32_t new_freq;
  	switch(key)
  	{
  	case 'q':
- 		frequency -= 1e6;
-		int r = rtlsdr_set_center_freq(dev, frequency);
-		if (r < 0) fprintf(stderr, "WARNING: Failed to set center freq.\n");
-		else fprintf(stderr, "\rTuned to %f MHz.", frequency/1e6);
-		sprintf(strFreq,"%4.0f",frequency/1e6);
+		new_freq = frequency - 1e6;
+		if (new_freq < RTL_MIN_FREQ)
+			new_freq = RTL_MIN_FREQ;
+		int r = rtlsdr_set_center_freq(dev, new_freq);
+		if (r < 0)
+			fprintf(stderr, "WARNING: Failed to set center freq.\n");
+		else {
+			fprintf(stderr, "\rTuned to %f MHz.", new_freq/1e6);
+			frequency = new_freq;
+		}
+		sprintf(strFreq,"%4.1f",frequency/1e6);
  		break;
  	case 'w':
- 		frequency += 1e6;
-		r = rtlsdr_set_center_freq(dev, frequency);
-		if (r < 0) fprintf(stderr, "WARNING: Failed to set center freq.\n");
-		else fprintf(stderr, "\rTuned to %f MHz.", frequency/1e6);
-		sprintf(strFreq,"%4.0f",frequency/1e6);
+		new_freq = frequency + 1e6;
+		if (new_freq > RTL_MAX_FREQ)
+			new_freq = RTL_MAX_FREQ;
+		r = rtlsdr_set_center_freq(dev, new_freq);
+		if (r < 0)
+			fprintf(stderr, "WARNING: Failed to set center freq.\n");
+		else {
+			fprintf(stderr, "\rTuned to %f MHz.", new_freq/1e6);
+			frequency = new_freq;
+		}
+		sprintf(strFreq,"%4.1f",frequency/1e6);
  		break;
  	case 'a':
  		pwr_diff *= .5;
@@ -344,16 +361,17 @@ int main(int argc, char **argv)
 	if (r < 0) fprintf(stderr, "WARNING: Failed to set sample rate.\n");
 
 	/* Set the frequency */
-	if ((frequency < 22e6) || (frequency > 1766e6)) {
+	if ((frequency < RTL_MIN_FREQ) || (frequency > RTL_MAX_FREQ)) {
 		frequency = 100e6;
-		fprintf(stderr, "WARNING: Center frequency should be 22MHz-1766MHz; setting to %dMHz\n", (int)(frequency/1e6));
+		fprintf(stderr, "WARNING: Center frequency should be %dMHz-%dMHz; setting to %dMHz\n",
+			(int)(RTL_MIN_FREQ/1e6), (int)(RTL_MAX_FREQ/1e6), (int)(frequency/1e6));
 	}
 	r = rtlsdr_set_center_freq(dev, frequency);
 	if (r < 0)
 		fprintf(stderr, "WARNING: Failed to set center freq.\n");
 	else
 		fprintf(stderr, "Tuned to %f MHz.\n", frequency/1e6);
-	sprintf(strFreq,"%4.0f", frequency/1e6);
+	sprintf(strFreq,"%4.1f", frequency/1e6);
 
 	/* Set the gain */
 	if (!gain)
