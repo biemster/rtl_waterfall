@@ -248,7 +248,8 @@ void readData(int line_idx)
 		offset = 0.0f;
 		line_idx = 0;
 	}
-	else offset = -(float)(line_idx)/(float)GLUT_BUFSIZE;
+	else
+		offset = -(float)(line_idx)/(float)GLUT_BUFSIZE;
 
 	// scale colors every full round of the buffer
 /*	if(line_idx==100)
@@ -296,11 +297,13 @@ void readData(int line_idx)
 	for(x = 0 ; x < GLUT_BUFSIZE ; x++)
 	{
 		pwr = 0.0f;
-		for(p = 0 ; p < n_avg ; p++) pwr += (fftw_out[(x*n_avg) +p][0] * fftw_out[(x*n_avg) +p][0]) + (fftw_out[(x*n_avg) +p][1] * fftw_out[(x*n_avg) +p][1]);
+		for(p = 0 ; p < n_avg ; p++)
+			pwr += (fftw_out[(x*n_avg) +p][0] * fftw_out[(x*n_avg) +p][0]) + (fftw_out[(x*n_avg) +p][1] * fftw_out[(x*n_avg) +p][1]);
 		pwr /= (n_avg * (N/2));
 		
 		// scale colors to power in spectrum
-		if(pwr > pwr_max) pwr_max = pwr;
+		if(pwr > pwr_max)
+			pwr_max = pwr;
 		color_idx = pwr/pwr_diff;
 		
 		//color_idx = (float)x/(float)GLUT_BUFSIZE;
@@ -322,8 +325,11 @@ void readData(int line_idx)
 		
 		// negative frequencies are in [N/2,N] and positive in [0,N/2]
 		int xN;
-		if(x < (GLUT_BUFSIZE/2)) xN = x + GLUT_BUFSIZE/2;
-		else xN = x - GLUT_BUFSIZE/2;
+		if(x < (GLUT_BUFSIZE/2))
+			xN = x + GLUT_BUFSIZE/2;
+		else
+			xN = x - GLUT_BUFSIZE/2;
+
 		texture[xN][GLUT_BUFSIZE-line_idx-1][0] = color_red;
 		texture[xN][GLUT_BUFSIZE-line_idx-1][1] = color_green;
 		texture[xN][GLUT_BUFSIZE-line_idx-1][2] = color_blue;
