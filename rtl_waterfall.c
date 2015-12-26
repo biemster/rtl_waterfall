@@ -249,7 +249,7 @@ void readData(int line_idx)
 		line_idx = 0;
 	}
 	else
-		offset = -(float)(line_idx)/(float)GLUT_BUFSIZE;
+		offset = -(float)(line_idx+1)/(float)GLUT_BUFSIZE;
 
 	// scale colors every full round of the buffer
 /*	if(line_idx==100)
