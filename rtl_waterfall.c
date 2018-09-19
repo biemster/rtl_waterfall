@@ -36,7 +36,8 @@
 
 float texture[GLUT_BUFSIZE][GLUT_BUFSIZE][3];
 float offset;
-char strFreq[5];
+#define FBUF_LEN 8 // room for {'1', '7', '6', '6', '.', '0', '\0'}
+char strFreq[FBUF_LEN];
 float pwr_max;
 float pwr_diff;
 
@@ -45,12 +46,25 @@ fftw_complex *fftw_in;
 fftw_complex *fftw_out;
 fftw_plan fftw_p;
 
-#define DEFAULT_SAMPLE_RATE			(128 * 16384)	// 2^21
+#define DEFAULT_SAMPLE_RATE	2e6
 #define DEFAULT_BUF_LENGTH			(8 * 16384)		// 2^17, [min,max]=[512,(256 * 16384)], update freq = (DEFAULT_SAMPLE_RATE / DEFAULT_BUF_LENGTH) Hz
+
+// Not all tuners can go to either extreme...
+#define RTL_MIN_FREQ 22e6
+#define RTL_MAX_FREQ 1766e6
 
 static int do_exit = 0;
 static rtlsdr_dev_t *dev = NULL;
 uint32_t frequency;
+uint32_t samp_rate = DEFAULT_SAMPLE_RATE;
+
+int *gains = NULL, gainsteps = 0;
+int gain_get_levels();
+int gain_auto_enable();
+int gain_manual_enable();
+int gain_is_valid(int);
+int gain_manual_increase();
+int gain_manual_decrease();
 
 void displayTicks();
 void glut_renderScene()
@@ -75,21 +89,57 @@ void glut_renderScene()
 
 void glut_keyboard( unsigned char key, int x, int y )
 {
+	uint32_t new_freq;
+	int r;
  	switch(key)
  	{
- 	case 'q':
- 		frequency -= 1e6;
-		int r = rtlsdr_set_center_freq(dev, frequency);
-		if (r < 0) fprintf(stderr, "WARNING: Failed to set center freq.\n");
-		else fprintf(stderr, "\rTuned to %f MHz.", frequency/1e6);
-		sprintf(strFreq,"%4.0f",frequency/1e6);
- 		break;
- 	case 'w':
- 		frequency += 1e6;
-		r = rtlsdr_set_center_freq(dev, frequency);
-		if (r < 0) fprintf(stderr, "WARNING: Failed to set center freq.\n");
-		else fprintf(stderr, "\rTuned to %f MHz.", frequency/1e6);
-		sprintf(strFreq,"%4.0f",frequency/1e6);
+	case 'Q':
+		new_freq = frequency - samp_rate/4;
+		if (new_freq < RTL_MIN_FREQ)
+			new_freq = RTL_MIN_FREQ;
+		if (rtlsdr_set_center_freq(dev, new_freq) < 0)
+			fprintf(stderr, "WARNING: Failed to set center freq.\n");
+		else {
+			fprintf(stderr, "\rTuned to %f MHz.", new_freq/1e6);
+			frequency = new_freq;
+		}
+		snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
+		break;
+	case 'q':
+		new_freq = frequency - samp_rate/2;
+		if (new_freq < RTL_MIN_FREQ)
+			new_freq = RTL_MIN_FREQ;
+		if (rtlsdr_set_center_freq(dev, new_freq) < 0)
+			fprintf(stderr, "WARNING: Failed to set center freq.\n");
+		else {
+			fprintf(stderr, "\rTuned to %f MHz.", new_freq/1e6);
+			frequency = new_freq;
+		}
+		snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
+		break;
+	case 'W':
+		new_freq = frequency + samp_rate/4;
+		if (new_freq > RTL_MAX_FREQ)
+			new_freq = RTL_MAX_FREQ;
+		if (rtlsdr_set_center_freq(dev, new_freq) < 0)
+			fprintf(stderr, "WARNING: Failed to set center freq.\n");
+		else {
+			fprintf(stderr, "\rTuned to %f MHz.", new_freq/1e6);
+			frequency = new_freq;
+		}
+		snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
+		break;
+	case 'w':
+		new_freq = frequency + samp_rate/2;
+		if (new_freq > RTL_MAX_FREQ)
+			new_freq = RTL_MAX_FREQ;
+		if (rtlsdr_set_center_freq(dev, new_freq) < 0)
+			fprintf(stderr, "WARNING: Failed to set center freq.\n");
+		else {
+			fprintf(stderr, "\rTuned to %f MHz.", new_freq/1e6);
+			frequency = new_freq;
+		}
+		snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
  		break;
  	case 'a':
  		pwr_diff *= .5;
@@ -99,6 +149,15 @@ void glut_keyboard( unsigned char key, int x, int y )
  		pwr_diff *= 2.;
  		fprintf(stderr, "\rpwr_diff reset to %.4f", pwr_diff);
  		break;
+	case 'f':
+		gain_manual_decrease();
+		break;
+	case 'g':
+		gain_auto_enable();
+		break;
+	case 'h':
+		gain_manual_increase();
+		break;
  	case 27: // Escape key
  		fprintf(stderr, "\nbye\n");
  		exit(0);
@@ -108,7 +167,8 @@ void glut_keyboard( unsigned char key, int x, int y )
 
 void displayTicks()
 {
-	// set the ticks for a 2 MHz bandwidth (DEFAULT_SAMPLE_RATE = (128 * 16384)	// 2^21)
+	char tbuf[FBUF_LEN];
+	snprintf(tbuf, FBUF_LEN, "%0.2f", samp_rate/4e6);
 	glDisable(GL_TEXTURE_2D);
 		glRasterPos2f(.95,-.98);
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, '|');
@@ -120,9 +180,8 @@ void displayTicks()
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, '|');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, ' ');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '+');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '0');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '.');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '5');
+		for (int i = 0; i < strlen(tbuf); i++)
+			glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, tbuf[i]);
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'M');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'H');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'z');
@@ -133,10 +192,8 @@ void displayTicks()
 		glRasterPos2f(-.005,-.98);
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, '|');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, ' ');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, strFreq[0]);
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, strFreq[1]);
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, strFreq[2]);
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, strFreq[3]);
+		for (int i = 0; i < strlen(strFreq); i++)
+			glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, strFreq[i]);
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, ' ');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'M');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'H');
@@ -149,9 +206,8 @@ void displayTicks()
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, '|');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, ' ');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '-');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '0');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '.');
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, '5');
+		for (int i = 0; i < strlen(tbuf); i++)
+			glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, tbuf[i]);
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'M');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'H');
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, 'z');
@@ -164,13 +220,13 @@ void displayTicks()
 	glEnable(GL_TEXTURE_2D);
 }
 
-int glut_init(int argc,char **argv)
+int glut_init(int *argc,char **argv)
 {
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
-
 	glutInitWindowPosition(100, 100);
 	glutInitWindowSize(GLUT_BUFSIZE, GLUT_BUFSIZE/2);
+	glutInit(argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+
 	glutCreateWindow("Waterfall");
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, GLUT_BUFSIZE, GLUT_BUFSIZE, 0, GL_RGB, GL_FLOAT, &texture[0][0][0]);
@@ -192,7 +248,8 @@ void readData(int line_idx)
 		offset = 0.0f;
 		line_idx = 0;
 	}
-	else offset = -(float)(line_idx)/(float)GLUT_BUFSIZE;
+	else
+		offset = -(float)(line_idx+1)/(float)GLUT_BUFSIZE;
 
 	// scale colors every full round of the buffer
 /*	if(line_idx==100)
@@ -240,11 +297,13 @@ void readData(int line_idx)
 	for(x = 0 ; x < GLUT_BUFSIZE ; x++)
 	{
 		pwr = 0.0f;
-		for(p = 0 ; p < n_avg ; p++) pwr += (fftw_out[(x*n_avg) +p][0] * fftw_out[(x*n_avg) +p][0]) + (fftw_out[(x*n_avg) +p][1] * fftw_out[(x*n_avg) +p][1]);
+		for(p = 0 ; p < n_avg ; p++)
+			pwr += (fftw_out[(x*n_avg) +p][0] * fftw_out[(x*n_avg) +p][0]) + (fftw_out[(x*n_avg) +p][1] * fftw_out[(x*n_avg) +p][1]);
 		pwr /= (n_avg * (N/2));
 		
 		// scale colors to power in spectrum
-		if(pwr > pwr_max) pwr_max = pwr;
+		if(pwr > pwr_max)
+			pwr_max = pwr;
 		color_idx = pwr/pwr_diff;
 		
 		//color_idx = (float)x/(float)GLUT_BUFSIZE;
@@ -266,8 +325,11 @@ void readData(int line_idx)
 		
 		// negative frequencies are in [N/2,N] and positive in [0,N/2]
 		int xN;
-		if(x < (GLUT_BUFSIZE/2)) xN = x + GLUT_BUFSIZE/2;
-		else xN = x - GLUT_BUFSIZE/2;
+		if(x < (GLUT_BUFSIZE/2))
+			xN = x + GLUT_BUFSIZE/2;
+		else
+			xN = x - GLUT_BUFSIZE/2;
+
 		texture[xN][GLUT_BUFSIZE-line_idx-1][0] = color_red;
 		texture[xN][GLUT_BUFSIZE-line_idx-1][1] = color_green;
 		texture[xN][GLUT_BUFSIZE-line_idx-1][2] = color_blue;
@@ -283,11 +345,98 @@ void readData(int line_idx)
 	glutTimerFunc(0,readData,++line_idx);
 }
 
+int gain_get_levels() {
+	gainsteps = rtlsdr_get_tuner_gains(dev, NULL);
+	gains = calloc(gainsteps, sizeof(int));
+	gainsteps = rtlsdr_get_tuner_gains(dev, gains);
+	return gainsteps;
+}
+
+int gain_auto_enable() {
+	int rv;
+	if ((rv = rtlsdr_set_tuner_gain_mode(dev, 0)) < 0)
+		fprintf(stderr, "WARNING: Failed to enable automatic gain.\n");
+	return rv;
+}
+
+int gain_manual_enable() {
+	int rv;
+	if ((rv = rtlsdr_set_tuner_gain_mode(dev, 1)) < 0)
+		fprintf(stderr, "WARNING: Failed to enable manual gain.\n");
+	return rv;
+}
+
+int gain_is_valid(int g) {
+	int i;
+	if ((NULL == gains) || (0 == gainsteps))
+		return 0;
+
+	for (i = 0; i < gainsteps; i++)
+		if (gains[i] == g)
+			return 1;
+	return 0;
+}
+
+int gain_manual_increase() {
+	int g = rtlsdr_get_tuner_gain(dev);
+	gain_manual_enable();
+	for (int i = 0; i < gainsteps; i++)
+		if (gains[i] > g) {
+			rtlsdr_set_tuner_gain(dev, gains[i]);
+			return 0;
+		}
+	return -1;
+}
+
+int gain_manual_decrease() {
+	int g = rtlsdr_get_tuner_gain(dev);
+	gain_manual_enable();
+	for (int i = gainsteps-1; i ; i--)
+		if (gains[i] < g) {
+			rtlsdr_set_tuner_gain(dev, gains[i]);
+			return 0;
+		}
+	return -1;
+}
+
+
 int main(int argc, char **argv)
 {
-	// setup window
-	glut_init(argc,argv);
+	int c;
+	uint32_t dev_index = 0;
+	int gain = 0, ppm = 0;
+	frequency = 100e6; /* global */
 
+	// setup window
+	glut_init(&argc, argv);
+
+	while ((c = getopt(argc, argv, "d:f:g:p:r:")) != -1) {
+		switch (c) {
+			case 'd':
+				dev_index = atoi(optarg);
+				break;
+			case 'f':
+				frequency = atof(optarg); // for scientific notation
+				break;
+			case 'g':
+				gain = (int) (atof(optarg) * 10); // nice clean fractional decibels
+				break;
+			case 'p':
+				ppm = (int) lround(atof(optarg)); // accept fractional ppm correction
+				break;
+			case 'r':
+				samp_rate = atof(optarg); // for scientific notation
+				break;
+			default:
+				fprintf(stderr, "Usage: %s [X11_GLUT_flags] [-d <dev_index>] [-f <freq>] "
+					"[-g <gain_dB>] [-p ppm] [-r samp_rate]\n", argv[0]);
+				exit(1);
+				/* NOTREACHED */
+		}
+	}
+	argv += optind;
+	argc -= optind;
+	
 	///
 	// init radio
 	///
@@ -300,64 +449,57 @@ int main(int argc, char **argv)
 
 	fprintf(stderr, "Found %d device(s):\n", device_count);
 
-	uint32_t dev_index = 0;
 	fprintf(stderr, "Using device %d: %s\n", dev_index, rtlsdr_get_device_name(dev_index));
 
-	int r = rtlsdr_open(&dev, dev_index);
-	if (r < 0)
+	if (rtlsdr_open(&dev, dev_index) < 0)
 	{
 		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
-	
+
 	/* Set the sample rate */
-	uint32_t samp_rate = DEFAULT_SAMPLE_RATE;
-	r = rtlsdr_set_sample_rate(dev, samp_rate);
-	if (r < 0) fprintf(stderr, "WARNING: Failed to set sample rate.\n");
+	if (rtlsdr_set_sample_rate(dev, samp_rate) < 0)
+		fprintf(stderr, "WARNING: Failed to set sample rate.\n");
 
 	/* Set the frequency */
-	frequency = 100000000;
-	if(argv[1]) frequency = (uint32_t)atof(argv[1]) * (uint32_t)1e6;
-	if(frequency < 1e6)
-	{
-		fprintf(stderr, "WARNING: Center frequency should be in range, setting to 100MHz\n");
-		frequency = 100000000;
+	if ((frequency < RTL_MIN_FREQ) || (frequency > RTL_MAX_FREQ)) {
+		frequency = 100e6;
+		fprintf(stderr, "WARNING: Center frequency should be %dMHz-%dMHz; setting to %dMHz\n",
+			(int)(RTL_MIN_FREQ/1e6), (int)(RTL_MAX_FREQ/1e6), (int)(frequency/1e6));
 	}
-	r = rtlsdr_set_center_freq(dev, frequency);
-	if (r < 0) fprintf(stderr, "WARNING: Failed to set center freq.\n");
-	else fprintf(stderr, "Tuned to %f MHz.\n", frequency/1e6);
-	sprintf(strFreq,"%4.0f",frequency/1e6);
+	if (rtlsdr_set_center_freq(dev, frequency) < 0)
+		fprintf(stderr, "WARNING: Failed to set center freq.\n");
+	else
+		fprintf(stderr, "Tuned to %f MHz.\n", frequency/1e6);
+	snprintf(strFreq, FBUF_LEN, "%6.1f",frequency/1e6);
+
+	/* Set the oscillator frequency ("PPM") correction */
+	if (ppm)
+		if (rtlsdr_set_freq_correction(dev, ppm) < 0)
+			fprintf(stderr, "WARNING: Failed to set frequency correction\n");
 
 	/* Set the gain */
-	int gain = 0;
-	if(argv[2]) gain = atoi(argv[2]);
-	if (!gain)
-	{
-		 /* Enable automatic gain */
-		r = rtlsdr_set_tuner_gain_mode(dev, 0);
-		if (r < 0) fprintf(stderr, "WARNING: Failed to enable automatic gain.\n");
-	}
-	else
-	{
-		/* Enable manual gain */
-		r = rtlsdr_set_tuner_gain_mode(dev, 1);
-		if (r < 0) fprintf(stderr, "WARNING: Failed to enable manual gain.\n");
+	gain_manual_enable(); // set manual mode first so gain levels can be queried
+	gain_get_levels();
+	gain_auto_enable(); // switch back to auto gain mode
 
-		/* Set the tuner gain */
-		r = rtlsdr_set_tuner_gain(dev, gain);
-		if (r < 0)
-		{
-			fprintf(stderr, "WARNING: Failed to set tuner gain.\n");
-			fprintf(stderr, "Valid values for e4000 are: -10, 15, 40, 65, 90, 115, 140, 165, 190, 215, 240, 290, 340, 420, 430, 450, 470, 490\n");
-			fprintf(stderr, "Valid values for r820t are: 9, 14, 27, 37, 77, 87, 125, 144, 157, 166, 197, 207, 229, 254, 280, 297,\n\t328, 338, 364, 372, 386, 402, 421, 434, 439, 445, 480, 496\n");
-			fprintf(stderr, "Gain values are in tenths of dB, e.g. 115 means 11.5 dB.\n");
+	if (gain) {
+		if (gain_is_valid(gain)) {
+			if (rtlsdr_set_tuner_gain(dev, gain) < 0)
+				fprintf(stderr, "WARNING: Failed to set tuner gain.\n");
+			fprintf(stderr, "Tuner gain set to %.1f dB.\n", rtlsdr_get_tuner_gain(dev)/10.0);
+		} else {
+			fprintf(stderr, "Invalid gain %.1f; using auto gain\n", gain/10.0);
+			fprintf(stderr, "Allowed values: ");
+			for (int i = 0; i < gainsteps; i++)
+				fprintf(stderr, "%.1f ", gains[i]/10.0);
+			fprintf(stderr, "\n\n");
 		}
-		else fprintf(stderr, "Tuner gain set to %f dB.\n", gain/10.0);
 	}
 	
 	/* Reset endpoint before we start reading from it (mandatory) */
-	r = rtlsdr_reset_buffer(dev);
-	if (r < 0) fprintf(stderr, "WARNING: Failed to reset buffers.\n");
+	if (rtlsdr_reset_buffer(dev) < 0)
+		fprintf(stderr, "WARNING: Failed to reset buffers.\n");
 
 	
 	///
@@ -376,7 +518,7 @@ int main(int argc, char **argv)
 	
 	/* start reading samples */
 	fprintf(stderr, "Update frequency is %.2fHz.\n",((double)DEFAULT_SAMPLE_RATE / (double)DEFAULT_BUF_LENGTH));
-	fprintf(stderr, "Press [q,w] to change frequency, [a,z] to adjust waterfall color sensitivity, ESC to quit.\n");
+	fprintf(stderr, "Press [Q,q,w,W] to change frequency, [a,z] to adjust color sensitivity, [f,g,h] to adjust gain, ESC to quit.\n");
 	pwr_max = 0.0f;
 	pwr_diff = 1.0f;
 	glutTimerFunc(0,readData,0);
