@@ -4,9 +4,15 @@
 CC?=gcc
 CFLAGS?=-O2 `pkg-config --cflags librtlsdr` -g
 LDFLAGS?=-lglut -lGL -lrtlsdr -lfftw3 -lm `pkg-config --libs librtlsdr`
+PREFIX?=/usr/local
+PROGRAM=rtl_waterfall
 
 all: 
-	$(CC) $(CFLAGS) -o rtl_waterfall rtl_waterfall.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $(PROGRAM) $(PROGRAM).c $(LDFLAGS)
+
+install:
+	mkdir -p $(PREFIX)/bin
+	cp $(PROGRAM) $(PREFIX)/bin
 
 clean:
-	rm -f rtl_waterfall
+	rm -f $(PROGRAM) *.o
