@@ -383,6 +383,7 @@ int gain_manual_increase() {
 	for (int i = 0; i < gainsteps; i++)
 		if (gains[i] > g) {
 			rtlsdr_set_tuner_gain(dev, gains[i]);
+			printf("set gain to %.1f\n", gains[i]/10.0);
 			return 0;
 		}
 	return -1;
@@ -393,6 +394,7 @@ int gain_manual_decrease() {
 	gain_manual_enable();
 	for (int i = gainsteps-1; i ; i--)
 		if (gains[i] < g) {
+			printf("set gain to %.1f\n", gains[i]/10.0);
 			rtlsdr_set_tuner_gain(dev, gains[i]);
 			return 0;
 		}
