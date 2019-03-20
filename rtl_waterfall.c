@@ -383,6 +383,7 @@ int gain_manual_increase() {
 	for (int i = 0; i < gainsteps; i++)
 		if (gains[i] > g) {
 			rtlsdr_set_tuner_gain(dev, gains[i]);
+			printf("set gain to %.1f\n", gains[i]/10.0);
 			return 0;
 		}
 	return -1;
@@ -393,6 +394,7 @@ int gain_manual_decrease() {
 	gain_manual_enable();
 	for (int i = gainsteps-1; i ; i--)
 		if (gains[i] < g) {
+			printf("set gain to %.1f\n", gains[i]/10.0);
 			rtlsdr_set_tuner_gain(dev, gains[i]);
 			return 0;
 		}
@@ -402,7 +404,7 @@ int gain_manual_decrease() {
 
 int main(int argc, char **argv)
 {
-	int c;
+	int c, listgain = 0;
 	uint32_t dev_index = 0;
 	int gain = 0, ppm = 0;
 	frequency = 100e6; /* global */
@@ -410,7 +412,7 @@ int main(int argc, char **argv)
 	// setup window
 	glut_init(&argc, argv);
 
-	while ((c = getopt(argc, argv, "d:f:g:p:r:")) != -1) {
+	while ((c = getopt(argc, argv, "d:f:g:lp:r:")) != -1) {
 		switch (c) {
 			case 'd':
 				dev_index = atoi(optarg);
@@ -420,6 +422,9 @@ int main(int argc, char **argv)
 				break;
 			case 'g':
 				gain = (int) (atof(optarg) * 10); // nice clean fractional decibels
+				break;
+			case 'l':
+				listgain = 1;
 				break;
 			case 'p':
 				ppm = (int) lround(atof(optarg)); // accept fractional ppm correction
@@ -457,6 +462,18 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
+	/* Set the gain */
+	gain_manual_enable(); // set manual mode first so gain levels can be queried
+	gain_get_levels();
+	gain_auto_enable(); // switch back to auto gain mode
+	if (listgain) {
+		printf("Supported gain levels: ");
+		for (int i = 0; i < gainsteps; i++)
+			printf("%.1f ", gains[i]/10.0);
+		printf("\n");
+		return 0;
+	}
+
 	/* Set the sample rate */
 	if (rtlsdr_set_sample_rate(dev, samp_rate) < 0)
 		fprintf(stderr, "WARNING: Failed to set sample rate.\n");
@@ -477,11 +494,6 @@ int main(int argc, char **argv)
 	if (ppm)
 		if (rtlsdr_set_freq_correction(dev, ppm) < 0)
 			fprintf(stderr, "WARNING: Failed to set frequency correction\n");
-
-	/* Set the gain */
-	gain_manual_enable(); // set manual mode first so gain levels can be queried
-	gain_get_levels();
-	gain_auto_enable(); // switch back to auto gain mode
 
 	if (gain) {
 		if (gain_is_valid(gain)) {

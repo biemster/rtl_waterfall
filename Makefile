@@ -2,11 +2,18 @@
 # something like "source /path/to/gnuradio/setup_env.sh"
 
 CC?=gcc
-CFLAGS?=-O2 `pkg-config --cflags librtlsdr` -g
-LDFLAGS?=-lglut -lGL -lrtlsdr -lfftw3 -lm `pkg-config --libs librtlsdr`
+CFLAGS?=-O2 -g
+LDFLAGS?=-lglut -lGL -lfftw3 -lm
+RTLFLAGS=`pkg-config --cflags --libs librtlsdr`
+PREFIX?=/usr/local
+PROGRAM=rtl_waterfall
 
 all: 
-	$(CC) $(CFLAGS) -o rtl_waterfall rtl_waterfall.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $(PROGRAM) $(PROGRAM).c $(LDFLAGS) $(RTLFLAGS)
+
+install:
+	mkdir -p $(PREFIX)/bin
+	cp $(PROGRAM) $(PREFIX)/bin
 
 clean:
-	rm -f rtl_waterfall
+	rm -f $(PROGRAM) *.o
